@@ -9,7 +9,7 @@ const port = process.env.PORT;
 
 // Middleware
 app.use(cors({
-    origin: ['http://localhost:3000', 'https://uktourism-eta.vercel.app'],
+    origin: ['http://localhost:3000', 'https://uktourism-eta.vercel.app', 'https://www.uttrakhandyatra.com'],
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
     allowedHeaders: ['Content-Type', 'Authorization']
 }));
