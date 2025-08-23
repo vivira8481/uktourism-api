@@ -28,6 +28,7 @@ transporter.verify((error, success) => {
 
 // POST /api/form/submit
 router.post('/submit', async (req, res) => {
+    let browser;
     try {
         const {
             fullName,
@@ -61,16 +62,21 @@ router.post('/submit', async (req, res) => {
         `;
 
         // Generate PDF from HTML using Puppeteer
-        const browser = await puppeteer.launch();
+        browser = await puppeteer.launch({
+            args: ['--no-sandbox', '--disable-setuid-sandbox'],
+            headless: true,
+            dumpio: true // Log browser output
+        });
         const page = await browser.newPage();
         await page.setContent(htmlContent);
         const pdfBuffer = await page.pdf({ format: 'A4' });
         await browser.close();
+        browser = null;
 
         // Compose email
         const mailOptions = {
             from: process.env.EMAIL_USER,
-            to: process.env.EMAIL_USER, // Or any other recipient
+            to: process.env.EMAIL_USER,
             subject: 'New Tour Inquiry Form Submission',
             html: `<p>Please find the attached PDF for the form submission details.</p>`,
             attachments: [
@@ -83,19 +89,24 @@ router.post('/submit', async (req, res) => {
         };
 
         // Send email
-        transporter.sendMail(mailOptions, (error, info) => {
-            if (error) {
-                console.error('Send error:', error);
-                return res.status(500).json({ error: 'Failed to send email' });
-            }
-
-            console.log('Email sent: %s', info.messageId);
-            return res.status(200).json({ message: 'Form submitted and email sent successfully!' });
+        await new Promise((resolve, reject) => {
+            transporter.sendMail(mailOptions, (error, info) => {
+                if (error) {
+                    console.error('Send error:', error);
+                    reject(error);
+                } else {
+                    console.log('Email sent: %s', info.messageId);
+                    resolve(info);
+                }
+            });
         });
 
+        return res.status(200).json({ message: 'Form submitted and email sent successfully!' });
+
     } catch (error) {
-        console.error('Error:', error);
-        res.status(500).json({ error: 'Server error while processing form submission' });
+        console.error('Error in /submit:', error);
+        if (browser) await browser.close().catch(() => { });
+        return res.status(500).json({ error: 'Server error while processing form submission' });
     }
 });
 
